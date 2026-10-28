@@ -13,9 +13,11 @@ collection = client.get_or_create_collection(
     embedding_function=emb_fn
 )
 
+
 class QueryRequest(BaseModel):
     query: str
     n_results: int = 3
+
 
 @app.post("/search")
 def search_endpoint(req: QueryRequest):
@@ -28,6 +30,7 @@ def search_endpoint(req: QueryRequest):
             "metadata": res["metadatas"][0][i]
         })
     return {"success": True, "results": results}
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
