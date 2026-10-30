@@ -1,50 +1,63 @@
+﻿import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 
-export async function POST(request) {
+export async function POST(req) {
   try {
-    const body = await request.json();
+    const body = await req.json();
     const {
       maintenanceId,
-      maintType = 'Routine Inspection',
-      date = new Date().toISOString().split('T')[0],
+      maintType,
+      date,
       description,
       cost,
-      status = 'Completed',
-      hangarId = 1,
+      status,
+      hangarId,
       aircraftId,
-      technicianId = 1,
+      technicianId,
       partLogId,
       partId,
       quantityUsed,
-      unitCost = 50.00
+      userRole,
     } = body;
 
-    // Direct invocation of the ACID Transactional Stored Procedure
-    await pool.query(
-      `CALL sp_log_maintenance_with_part(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    // RBAC Security Gate: Disallow non-admin executions
+    if (userRole !== 'Admin') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Access Denied: Only users with System Admin privileges can execute transactional work orders.',
+        },
+        { status: 403 }
+      );
+    }
+
+    const [results] = await pool.query(
+      'CALL sp_log_maintenance_with_part(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
-        Number(maintenanceId),
+        parseInt(maintenanceId),
         maintType,
         date,
         description,
-        Number(cost),
+        parseFloat(cost),
         status,
-        Number(hangarId),
-        Number(aircraftId),
-        Number(technicianId),
-        Number(partLogId),
-        Number(partId),
-        Number(quantityUsed),
-        Number(unitCost)
+        parseInt(hangarId),
+        parseInt(aircraftId),
+        parseInt(technicianId),
+        parseInt(partLogId),
+        parseInt(partId),
+        parseInt(quantityUsed),
       ]
     );
 
-    return Response.json({ 
-      success: true, 
-      message: 'Record committed atomically via Stored Procedure!' 
+    return NextResponse.json({
+      success: true,
+      message: 'Atomic Stored Procedure executed successfully.',
+      data: results,
     });
-  } catch (error) {
-    console.error('Maintenance Procedure Error:', error.message);
-    return Response.json({ success: false, error: error.message }, { status: 400 });
+  } catch (err) {
+    return NextResponse.json(
+      { success: false, error: err.message },
+      { status: 500 }
+    );
   }
 }
